@@ -1,1 +1,1 @@
-# whistgames.github.io
+# Whist
