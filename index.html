@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Mode Trick-Taking Games</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    body {
+        font-family: 'Inter', sans-serif;
+    }
+    .card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    .card:hover:not(.disabled) {
+        transform: translateY(-10px) rotate(2deg);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    }
+    .card.disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .card.trump-card-bg {
+        background-color: #fef9c3; /* Light yellow for trump suit */
+    }
+    .card-placeholder {
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+    }
+    .modal-backdrop {
+        background-color: rgba(0,0,0,0.7);
+    }
+    .trump-suit-display {
+        width: 64px;
+        height: 96px;
+        font-size: 4rem;
+    }
+    .card-4p-hand {
+      width: 40px;
+      height: 56px;
+    }
+</style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div id="modeSelection" class="text-center">
+        <h1 class="text-4xl font-bold text-emerald-400 mb-8">Choose Your Game</h1>
+        <div class="flex flex-col md:flex-row gap-4 flex-wrap justify-center">
+            <button id="germanWhistBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                German Whist
+            </button>
+            <button id="whistBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                Classic Whist (2P)
+            </button>
+             <button id="whist4pBtn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                Classic Whist (4P)
+            </button>
+            <button id="puzzleBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                Trick Target Game
+            </button>
+        </div>
+        <div id="gameRules" class="mt-8 p-6 bg-gray-800 rounded-lg max-w-2xl text-left hidden">
+            </div>
+    </div>
+
+    <div id="gameArea" class="hidden w-full max-w-7xl mx-auto">
+        <h1 id="gameTitle" class="text-3xl font-bold text-emerald-400 mb-2 text-center"></h1>
+        <div id="status" class="status text-center text-lg text-yellow-300 h-8 mb-4">Select a game to start.</div>
+
+        <div id="infoBar" class="flex justify-around items-center mb-4 p-3 bg-gray-800 rounded-lg">
+            <div id="playerScoreContainer" class="score text-center">
+                <strong class="text-xl">Your Tricks:</strong> <span id="playerScore" class="text-2xl font-bold text-green-400">0</span>
+                <div id="targetTricksContainer" class="hidden"><strong>Target:</strong> <span id="targetTricks" class="text-lg font-bold"></span></div>
+            </div>
+            <div id="team1ScoreContainer" class="score text-center hidden">
+                <strong class="text-xl">Your Team:</strong> <span id="team1Score" class="text-2xl font-bold text-green-400">0</span>
+            </div>
+            <div id="trumpArea" class="text-center hidden">
+                <strong class="text-xl">Trump Suit</strong>
+                <div id="trumpSuitDisplay" class="card-placeholder trump-suit-display rounded-lg flex items-center justify-center mx-auto mt-2"></div>
+            </div>
+             <div id="prizeCardArea" class="text-center hidden">
+                <strong class="text-xl">Prize Card</strong>
+                <div id="prizeCardDisplay" class="card w-16 h-24 bg-white text-black rounded-lg flex flex-col justify-between p-1 font-bold text-center mx-auto mt-2"></div>
+            </div>
+            <div id="opponentScoreContainer" class="score text-center">
+                <strong class="text-xl">Opponent Tricks:</strong> <span id="opponentScore" class="text-2xl font-bold text-red-400">0</span>
+            </div>
+             <div id="team2ScoreContainer" class="score text-center hidden">
+                <strong class="text-xl">Opponent Team:</strong> <span id="team2Score" class="text-2xl font-bold text-red-400">0</span>
+            </div>
+        </div>
+        
+        <div id="partnerArea_4p" class="hidden text-center my-6">
+            <strong id="partnerHandTitle">Partner (N)</strong>
+            <div id="partnerHand" class="hand flex justify-center gap-1 mt-2 min-h-[56px]"></div>
+        </div>
+
+        <div class="section text-center my-6">
+            <strong>Current Trick</strong>
+            <div id="trickArea_2p" class="played flex justify-center items-center gap-8 p-4 bg-gray-800/50 rounded-lg min-h-[140px]">
+                <div class="text-center">
+                    <div>Opponent's Card</div>
+                    <div id="opponentPlayed" class="card-placeholder w-20 h-28 rounded-lg flex items-center justify-center">—</div>
+                </div>
+                <div class="text-center">
+                    <div>Your Card</div>
+                    <div id="playerPlayed" class="card-placeholder w-20 h-28 rounded-lg flex items-center justify-center">—</div>
+                </div>
+            </div>
+            <div id="trickArea_4p" class="hidden relative p-4 bg-gray-800/50 rounded-lg min-h-[320px] max-w-2xl mx-auto">
+                 <div id="partnerPlayed" class="absolute top-2 left-1/2 -translate-x-1/2"></div>
+                 <div id="opponent3Played" class="absolute top-1/2 left-2 -translate-y-1/2"></div>
+                 <div id="opponent1Played" class="absolute top-1/2 right-2 -translate-y-1/2"></div>
+                 <div id="playerPlayed_4p" class="absolute bottom-2 left-1/2 -translate-x-1/2"></div>
+            </div>
+        </div>
+        
+         <div id="opponentArea_2p" class="section text-center my-6">
+            <strong id="opponentHandTitle">Opponent Hand</strong>
+            <div id="opponentHand" class="hand flex justify-center gap-2 mt-2 min-h-[106px]"></div>
+        </div>
+        <div id="opponentsArea_4p" class="hidden flex justify-between items-center my-6 max-w-2xl mx-auto">
+             <div class="text-center w-1/2">
+                 <strong>Opponent (W)</strong>
+                 <div id="opponent3Hand" class="hand flex justify-center gap-1 mt-2 min-h-[56px]"></div>
+             </div>
+             <div class="text-center w-1/2">
+                 <strong>Opponent (E)</strong>
+                 <div id="opponent1Hand" class="hand flex justify-center gap-1 mt-2 min-h-[56px]"></div>
+             </div>
+        </div>
+
+        <div class="section text-center my-6">
+            <strong>Your Hand (S)</strong>
+            <div id="playerHand" class="hand flex justify-center gap-2 mt-2 min-h-[106px]"></div>
+        </div>
+
+        <div class="text-center mt-6 flex justify-center items-center gap-4">
+            <button id="dealBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">New Game</button>
+            <button id="changeModeBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">Change Mode</button>
+            <a href="https://ko-fi.com/josephhamm" target="_blank" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">Buy me a Ko-fi!</a>
+        </div>
+    </div>
+
+    <div id="resultModal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center max-w-sm">
+            <h2 id="resultTitle" class="text-3xl font-bold mb-4"></h2>
+            <p id="resultMessage" class="text-lg mb-6"></p>
+            <button id="closeModalBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">Close</button>
+        </div>
+    </div>
+
+<script>
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RANK_VALUES = {};
+RANKS.forEach((rank, index) => { RANK_VALUES[rank] = index + 2; });
+
+// --- DOM Elements ---
+const statusEl = document.getElementById('status');
+const playerHandEl = document.getElementById('playerHand');
+const opponentHandEl = document.getElementById('opponentHand');
+const opponentPlayedEl = document.getElementById('opponentPlayed');
+const playerPlayedEl = document.getElementById('playerPlayed');
+const playerScoreEl = document.getElementById('playerScore');
+const opponentScoreEl = document.getElementById('opponentScore');
+const team1ScoreEl = document.getElementById('team1Score');
+const team2ScoreEl = document.getElementById('team2Score');
+const dealBtn = document.getElementById('dealBtn');
+const changeModeBtn = document.getElementById('changeModeBtn');
+const modeSelection = document.getElementById('modeSelection');
+const gameArea = document.getElementById('gameArea');
+const gameTitleEl = document.getElementById('gameTitle');
+const targetTricksContainer = document.getElementById('targetTricksContainer');
+const targetTricksEl = document.getElementById('targetTricks');
+const trumpArea = document.getElementById('trumpArea');
+const trumpSuitDisplay = document.getElementById('trumpSuitDisplay');
+const prizeCardArea = document.getElementById('prizeCardArea');
+const prizeCardDisplay = document.getElementById('prizeCardDisplay');
+const opponentHandTitle = document.getElementById('opponentHandTitle');
+const partnerArea_4p = document.getElementById('partnerArea_4p');
+const trickArea_2p = document.getElementById('trickArea_2p');
+const trickArea_4p = document.getElementById('trickArea_4p');
+const opponentArea_2p = document.getElementById('opponentArea_2p');
+const opponentsArea_4p = document.getElementById('opponentsArea_4p');
+const partnerHandEl = document.getElementById('partnerHand');
+const partnerPlayedEl = document.getElementById('partnerPlayed');
+const opponent1PlayedEl = document.getElementById('opponent1Played');
+const opponent3PlayedEl = document.getElementById('opponent3Played');
+const playerPlayed_4pEl = document.getElementById('playerPlayed_4p');
+
+
+// --- Game State ---
+let gameState = {};
+let currentGameMode = '';
+const gameRuleText = {
+    puzzle: `
+        <h3 class="text-xl font-bold text-blue-400 mb-2">Trick Target Game</h3>
+        <p>Your opponent's hand is visible. A target number of tricks is set. Your goal is to win <strong>exactly</strong> that many tricks, no more, no less. Good luck!</p>
+    `,
+    german_whist: `
+        <h3 class="text-xl font-bold text-purple-400 mb-2">German Whist</h3>
+        <p>A 2-player game in two phases. <strong>Phase 1:</strong> Win tricks to claim the face-up 'Prize Card' for Phase 2. The loser gets a hidden card. Your hand will shrink. <strong>Phase 2:</strong> Once the deck is gone, your hand is refilled with won cards and you play to win the most tricks overall.</p>
+    `,
+    whist: `
+        <h3 class="text-xl font-bold text-teal-400 mb-2">Classic Whist (2-Player)</h3>
+        <p>13 cards are dealt and a trump suit is set. The goal is to win the majority of the tricks (7 or more). The opponent's hand is hidden.</p>
+    `,
+     whist_4p: `
+        <h3 class="text-xl font-bold text-orange-400 mb-2">Classic Whist (4-Player)</h3>
+        <p>This is a team-based game. You are partnered with the player across from you (North). Your goal is to win more tricks than the opposing team (East/West). The last card dealt determines the trump suit for the round.</p>
+    `
+};
+
+function resetGameState() {
+    gameState = {
+        hands: [[], [], [], []], // 0: player, 1: opp E, 2: partner N, 3: opp W
+        wonCards: [[], []], // For German Whist Phase 1
+        playedCards: [null, null, null, null],
+        prizeCard: null,
+        talon: [],
+        trumpSuit: null,
+        playerPlayedCard: null, // For 2P games
+        opponentPlayedCard: null, // For 2P games
+        currentLeader: null, // For 2P games
+        trickLeaderIndex: 0, // For 4P games
+        currentPlayerIndex: 0, // For 4P games
+        turnOrder: [],
+        scores: [0,0], // [Team 1/Player, Team 2/Opponent]
+        targetTricks: -1,
+        gameActive: false,
+        phase: 1, 
+        isPlayerTurn: false,
+        isResolving: false,
+    };
+}
+
+// --- Deck & Card Functions ---
+function makeDeck() { return SUITS.flatMap(suit => RANKS.map(rank => ({ suit, rank, value: RANK_VALUES[rank], id: `${rank}${suit}` }))); }
+function shuffle(arr) { let s=[...arr]; for (let i=s.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[s[i],s[j]]=[s[j],s[i]]} return s; }
+
+// --- UI Rendering ---
+function renderCard(card, isPlaceholder = false) {
+    if (isPlaceholder || !card) {
+        const div = document.createElement('div');
+        div.className = "card-placeholder w-20 h-28 rounded-lg flex items-center justify-center";
+        div.innerHTML = '—';
+        return div;
+    }
+    const isRed = card.suit === '♥' || card.suit === '♦';
+    const isTrump = card.suit === gameState.trumpSuit;
+    const div = document.createElement('div');
+    div.className = `card w-20 h-28 bg-white ${isRed ? 'text-red-600' : 'text-black'} ${isTrump ? 'trump-card-bg' : ''} rounded-lg flex flex-col justify-between p-1 font-bold text-center shadow-md`;
+    div.innerHTML = `<div class="text-left text-xl">${card.rank}</div><div class="text-4xl">${card.suit}</div><div class="text-right text-xl">${card.rank}</div>`;
+    return div;
+}
+
+function renderHand(hand, element, isPlayerHand, isVisible) {
+    element.innerHTML = '';
+    hand.forEach((card, index) => {
+        let cardEl;
+        if (isPlayerHand || isVisible) {
+            cardEl = renderCard(card);
+        } else {
+            cardEl = document.createElement('div');
+            cardEl.className = 'card w-14 h-20 bg-gray-500 rounded-lg shadow-md';
+        }
+        
+        if (isPlayerHand && gameState.isPlayerTurn) {
+            cardEl.classList.add('cursor-pointer');
+            cardEl.onclick = () => playCard(index);
+        } else {
+            cardEl.classList.add('disabled');
+        }
+        element.appendChild(cardEl);
+    });
+}
+
+function renderHand4P(hand, element) {
+    element.innerHTML = '';
+    hand.forEach(() => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card card-4p-hand bg-gray-500 rounded-lg shadow-md';
+        element.appendChild(cardEl);
+    });
+}
+
+function updateUI() {
+    const is4P = currentGameMode === 'whist_4p';
+    const is2P = !is4P;
+    
+    // Toggle UI sections
+    document.getElementById('playerScoreContainer').classList.toggle('hidden', is4P);
+    document.getElementById('opponentScoreContainer').classList.toggle('hidden', is4P);
+    document.getElementById('team1ScoreContainer').classList.toggle('hidden', is2P);
+    document.getElementById('team2ScoreContainer').classList.toggle('hidden', is2P);
+    trickArea_2p.classList.toggle('hidden', is4P);
+    trickArea_4p.classList.toggle('hidden', is2P);
+    opponentArea_2p.classList.toggle('hidden', is4P);
+    opponentsArea_4p.classList.toggle('hidden', is2P);
+    partnerArea_4p.classList.toggle('hidden', is2P);
+
+    // Scores
+    if (is4P) { team1ScoreEl.textContent = gameState.scores[0]; team2ScoreEl.textContent = gameState.scores[1]; } 
+    else { playerScoreEl.textContent = gameState.scores[0]; opponentScoreEl.textContent = gameState.scores[1]; }
+
+    // Hands
+    renderHand(gameState.hands[0], playerHandEl, true, false);
+    if(is4P) { 
+      renderHand4P(gameState.hands[2], partnerHandEl); 
+      renderHand4P(gameState.hands[1], document.getElementById('opponent1Hand'));
+      renderHand4P(gameState.hands[3], document.getElementById('opponent3Hand'));
+    } 
+    else {
+        const opponentVisible = currentGameMode === 'puzzle';
+        renderHand(gameState.hands[1], opponentHandEl, false, opponentVisible);
+        opponentHandTitle.textContent = opponentVisible ? "Opponent Hand (Visible)" : "Opponent Hand";
+    }
+
+    // Played cards
+    if(is4P) {
+        playerPlayed_4pEl.innerHTML = ''; playerPlayed_4pEl.appendChild(renderCard(gameState.playedCards[0], !gameState.playedCards[0]));
+        opponent1PlayedEl.innerHTML = ''; opponent1PlayedEl.appendChild(renderCard(gameState.playedCards[1], !gameState.playedCards[1]));
+        partnerPlayedEl.innerHTML = ''; partnerPlayedEl.appendChild(renderCard(gameState.playedCards[2], !gameState.playedCards[2]));
+        opponent3PlayedEl.innerHTML = ''; opponent3PlayedEl.appendChild(renderCard(gameState.playedCards[3], !gameState.playedCards[3]));
+    } else {
+        opponentPlayedEl.innerHTML = ''; opponentPlayedEl.appendChild(renderCard(gameState.opponentPlayedCard, !gameState.opponentPlayedCard));
+        playerPlayedEl.innerHTML = ''; playerPlayedEl.appendChild(renderCard(gameState.playerPlayedCard, !gameState.playerPlayedCard));
+    }
+    
+    // Game mode specifics
+    targetTricksContainer.classList.toggle('hidden', currentGameMode !== 'puzzle');
+    trumpArea.classList.toggle('hidden', !gameState.trumpSuit);
+    prizeCardArea.classList.toggle('hidden', currentGameMode !== 'german_whist' || gameState.phase !== 1);
+
+    if (currentGameMode === 'puzzle') { targetTricksEl.textContent = gameState.targetTricks === -1 ? '?' : gameState.targetTricks; }
+    if (gameState.trumpSuit) {
+        const isRed = gameState.trumpSuit === '♥' || gameState.trumpSuit === '♦';
+        trumpSuitDisplay.innerHTML = gameState.trumpSuit;
+        trumpSuitDisplay.className = `card-placeholder trump-suit-display rounded-lg flex items-center justify-center mx-auto mt-2 ${isRed ? 'text-red-500' : 'text-gray-200'}`;
+    }
+    if (currentGameMode === 'german_whist' && gameState.phase === 1 && gameState.prizeCard) {
+        prizeCardDisplay.innerHTML = renderCard(gameState.prizeCard).innerHTML;
+        prizeCardDisplay.className = renderCard(gameState.prizeCard).className;
+    }
+}
+
+// --- Game Mode Setup ---
+function selectGameMode(mode) {
+    currentGameMode = mode;
+    const rulesPanel = document.getElementById('gameRules');
+    document.querySelectorAll('#modeSelection button').forEach(b => b.classList.remove('ring-4', 'ring-emerald-400'));
+    const buttonMap = {'german_whist': 'germanWhistBtn', 'whist': 'whistBtn', 'whist_4p': 'whist4pBtn', 'puzzle': 'puzzleBtn'};
+    const button = document.getElementById(buttonMap[mode]);
+    if(button) button.classList.add('ring-4', 'ring-emerald-400');
+    rulesPanel.innerHTML = gameRuleText[mode];
+    rulesPanel.classList.remove('hidden');
+    let startBtn = document.getElementById('startGameBtn');
+    if (!startBtn) {
+        startBtn = document.createElement('button');
+        startBtn.id = 'startGameBtn';
+        startBtn.className = "bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg mt-4 w-full transition-transform transform hover:scale-105";
+        rulesPanel.appendChild(startBtn);
+    }
+    startBtn.textContent = `Start ${button.textContent.trim()}`;
+    startBtn.onclick = () => { modeSelection.classList.add('hidden'); gameArea.classList.remove('hidden'); deal(); };
+}
+
+function deal() {
+    resetGameState();
+    const buttonMap = {'german_whist': 'germanWhistBtn', 'whist': 'whistBtn', 'whist_4p': 'whist4pBtn', 'puzzle': 'puzzleBtn'};
+    const btnText = document.getElementById(buttonMap[currentGameMode]).textContent.trim();
+    gameTitleEl.textContent = btnText;
+    const deck = shuffle(makeDeck());
+    let status = '';
+
+    if (currentGameMode === 'puzzle') {
+        status = `Calculating a solvable puzzle...`;
+        gameState.gameActive = true;
+        updateUI();
+        setTimeout(() => { // Allow UI to update before heavy calculation
+            let pHand, oHand, target = -1;
+            while(target === -1) {
+                const newDeck = shuffle(makeDeck());
+                pHand = newDeck.slice(0, 5);
+                oHand = newDeck.slice(5, 10);
+                const solvableTargets = new Set();
+                for (let t = 0; t <= 5; t++) {
+                    if (isPuzzleSolvable(pHand, oHand, t, 0, true) || isPuzzleSolvable(pHand, oHand, t, 0, false)) {
+                        solvableTargets.add(t);
+                    }
+                }
+                const validTargets = Array.from(solvableTargets).filter(t => t > 0 && t < 5);
+                if (validTargets.length > 0) {
+                    target = validTargets[Math.floor(Math.random() * validTargets.length)];
+                } else {
+                    // Force a new puzzle if only 0 or 5 tricks are solvable
+                    continue;
+                }
+            }
+            gameState.hands[0] = pHand.sort(cardSorter);
+            gameState.hands[1] = oHand.sort(cardSorter);
+            gameState.targetTricks = target;
+            gameState.currentLeader = Math.random() < 0.5 ? 'player' : 'opponent';
+            statusEl.textContent = `New puzzle! Target: ${target}. ${gameState.currentLeader === 'player' ? 'You lead' : 'Opponent leads'}.`;
+            gameState.isPlayerTurn = gameState.currentLeader === 'player';
+            if (!gameState.isPlayerTurn) setTimeout(opponentTurn_2P, 1000);
+            updateUI();
+        }, 100);
+        return; // Exit deal early
+    } else if (currentGameMode === 'german_whist') {
+        gameState.hands[0] = deck.slice(0, 13).sort(cardSorter);
+        gameState.hands[1] = deck.slice(13, 26).sort(cardSorter);
+        gameState.talon = deck.slice(26);
+        gameState.prizeCard = gameState.talon.shift();
+        gameState.trumpSuit = gameState.prizeCard.suit;
+        gameState.currentLeader = Math.random() < 0.5 ? 'player' : 'opponent';
+        status = `Phase 1: Win cards for Phase 2! ${gameState.currentLeader === 'player' ? 'You lead' : 'Opponent leads'}.`;
+    } else if (currentGameMode === 'whist') {
+        gameState.hands[0] = deck.slice(0, 13).sort(cardSorter);
+        gameState.hands[1] = deck.slice(13, 26).sort(cardSorter);
+        gameState.trumpSuit = deck[26].suit;
+        gameState.currentLeader = Math.random() < 0.5 ? 'player' : 'opponent';
+        status = `New game! ${gameState.currentLeader === 'player' ? 'You lead' : 'Opponent leads'}.`;
+    } else if (currentGameMode === 'whist_4p') {
+        for (let i = 0; i < 52; i++) {
+            gameState.hands[i % 4].push(deck[i]);
+        }
+        gameState.trumpSuit = gameState.hands[3][12].suit;
+        
+        gameState.hands.forEach(h => h.sort(cardSorter));
+        gameState.trickLeaderIndex = 0; 
+        gameState.currentPlayerIndex = 0;
+        status = `New 4-Player game! You lead the first trick. Trump is ${gameState.trumpSuit}.`;
+    }
+    
+    gameState.gameActive = true;
+    statusEl.textContent = status;
+    if (currentGameMode === 'whist_4p') { processNextTurn_4P(); } 
+    else { gameState.isPlayerTurn = gameState.currentLeader === 'player'; if (!gameState.isPlayerTurn) setTimeout(opponentTurn_2P, 1000); }
+    updateUI();
+}
+
+// --- CORE GAMEPLAY ---
+function playCard(index) {
+    if (!gameState.gameActive || !gameState.isPlayerTurn || gameState.isResolving) return;
+    const card = gameState.hands[0][index];
+    let leadCard, leadSuit;
+    if(currentGameMode === 'whist_4p') { leadCard = gameState.playedCards[gameState.trickLeaderIndex]; } 
+    else { leadCard = gameState.opponentPlayedCard; }
+    if (leadCard) {
+        leadSuit = leadCard.suit;
+        if (gameState.hands[0].some(c => c.suit === leadSuit) && card.suit !== leadSuit) {
+            statusEl.textContent = `You must follow suit! Play a ${leadSuit} card.`; return;
+        }
+    }
+    gameState.isPlayerTurn = false;
+    if(currentGameMode === 'whist_4p') {
+        gameState.playedCards[0] = gameState.hands[0].splice(index, 1)[0];
+        gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % 4;
+        updateUI();
+        setTimeout(processNextTurn_4P, 1000);
+    } else {
+        gameState.playerPlayedCard = gameState.hands[0].splice(index, 1)[0];
+        updateUI();
+        if (leadCard) { statusEl.textContent = "Resolving trick..."; setTimeout(resolveTrick_2P, 1500); } 
+        else { statusEl.textContent = "Opponent's turn..."; setTimeout(opponentTurn_2P, 1000); }
+    }
+}
+
+// --- 2-PLAYER LOGIC ---
+function opponentTurn_2P() {
+    if (!gameState.gameActive || gameState.isPlayerTurn || gameState.isResolving) return;
+    const leadCard = gameState.playerPlayedCard;
+    const hand = gameState.hands[1];
+    let cardToPlay;
+    if(leadCard) { cardToPlay = findBestCardToFollow(hand, leadCard, gameState.trumpSuit); }
+    else { cardToPlay = findBestCardToLead(hand, gameState.trumpSuit, currentGameMode === 'puzzle' ? gameState.hands[0] : null); }
+    const index = hand.findIndex(c => c.id === cardToPlay.id);
+    gameState.opponentPlayedCard = hand.splice(index, 1)[0];
+    updateUI();
+    if(leadCard) { setTimeout(resolveTrick_2P, 1500); }
+    else { gameState.isPlayerTurn = true; statusEl.textContent = "Your turn to play."; updateUI(); }
+}
+
+function resolveTrick_2P() {
+    gameState.isResolving = true;
+    let winner;
+    const pCard = gameState.playerPlayedCard;
+    const oCard = gameState.opponentPlayedCard;
+    const leadCard = gameState.currentLeader === 'player' ? pCard : oCard;
+    if (pCard.suit === oCard.suit) winner = pCard.value > oCard.value ? 'player' : 'opponent';
+    else if (pCard.suit === gameState.trumpSuit) winner = 'player';
+    else if (oCard.suit === gameState.trumpSuit) winner = 'opponent';
+    else if (pCard.suit === leadCard.suit) winner = 'player';
+    else winner = 'opponent';
+    if (winner === 'player') { if(gameState.phase === 2 || currentGameMode !== 'german_whist') { gameState.scores[0]++; } gameState.currentLeader = 'player'; statusEl.textContent = "You won the trick! You lead next.";}
+    else { if(gameState.phase === 2 || currentGameMode !== 'german_whist') { gameState.scores[1]++; } gameState.currentLeader = 'opponent'; statusEl.textContent = "Opponent won the trick. They lead next."; }
+    setTimeout(() => nextPhase_2P(winner), 1500);
+}
+
+function nextPhase_2P(winner) {
+    if (currentGameMode === 'german_whist' && gameState.phase === 1) {
+        if (winner === 'player') { gameState.wonCards[0].push(gameState.prizeCard); gameState.wonCards[1].push(gameState.talon.shift()); }
+        else { gameState.wonCards[1].push(gameState.prizeCard); gameState.wonCards[0].push(gameState.talon.shift()); }
+        if (gameState.talon.length > 0) { gameState.prizeCard = gameState.talon.shift(); } 
+        else {
+            gameState.phase = 2;
+            gameState.hands[0].push(...gameState.wonCards[0]); gameState.hands[1].push(...gameState.wonCards[1]);
+            gameState.hands[0].sort(cardSorter); gameState.hands[1].sort(cardSorter);
+            gameState.scores = [0,0];
+            statusEl.textContent = `Phase 2: Play out final hands! ${gameState.currentLeader === 'player' ? 'You lead.' : 'Opponent leads.'}`;
+        }
+    }
+    gameState.playerPlayedCard = null; gameState.opponentPlayedCard = null;
+    gameState.isResolving = false;
+    if (gameState.hands[0].length === 0) { endGame(); return; }
+    gameState.isPlayerTurn = gameState.currentLeader === 'player';
+    if(!gameState.isPlayerTurn) setTimeout(opponentTurn_2P, 1000);
+    updateUI();
+}
+
+// --- 4-PLAYER LOGIC ---
+function processNextTurn_4P() {
+    if (gameState.isResolving) return;
+    const playerIndex = gameState.currentPlayerIndex;
+    if (playerIndex === 0) { // Player's turn
+        gameState.isPlayerTurn = true;
+        statusEl.textContent = "Your turn to play.";
+        updateUI();
+        return;
+    }
+    statusEl.textContent = `Player ${playerIndex + 1}'s turn...`;
+    const hand = gameState.hands[playerIndex];
+    let cardToPlay;
+    if (playerIndex === gameState.trickLeaderIndex) { cardToPlay = findBestCardToLead(hand, gameState.trumpSuit); } 
+    else { const leadCard = gameState.playedCards[gameState.trickLeaderIndex]; cardToPlay = findBestCardToFollow(hand, leadCard, gameState.trumpSuit); }
+    const cardIndex = hand.findIndex(c => c.id === cardToPlay.id);
+    gameState.playedCards[playerIndex] = hand.splice(cardIndex, 1)[0];
+    const nextPlayerIndex = (playerIndex + 1) % 4;
+    gameState.currentPlayerIndex = nextPlayerIndex;
+    updateUI();
+    const cardsPlayedCount = gameState.playedCards.filter(c => c !== null).length;
+    if (cardsPlayedCount === 4) { statusEl.textContent = `Resolving trick...`; gameState.isResolving = true; setTimeout(resolveTrick_4P, 1500); } 
+    else { setTimeout(processNextTurn_4P, 1000); }
+}
+
+function resolveTrick_4P() {
+    const leadCard = gameState.playedCards[gameState.trickLeaderIndex];
+    let winningCard = leadCard;
+    let winnerIndex = gameState.trickLeaderIndex;
+    for (let i = 0; i < 4; i++) {
+        const card = gameState.playedCards[i];
+        if (card.suit === winningCard.suit) { if (card.value > winningCard.value) { winningCard = card; winnerIndex = i; } } 
+        else if (card.suit === gameState.trumpSuit && winningCard.suit !== gameState.trumpSuit) { winningCard = card; winnerIndex = i; }
+    }
+    const winnerTeam = winnerIndex % 2;
+    gameState.scores[winnerTeam]++;
+    statusEl.textContent = `Player ${winnerIndex + 1} won the trick!`;
+    setTimeout(() => nextPhase_4P(winnerIndex), 1500);
+}
+
+function nextPhase_4P(winnerIndex) {
+    gameState.playedCards = [null, null, null, null];
+    gameState.trickLeaderIndex = winnerIndex;
+    gameState.currentPlayerIndex = winnerIndex;
+    gameState.isResolving = false;
+    if (gameState.hands[0].length === 0) { endGame(); return; }
+    statusEl.textContent = `Player ${winnerIndex + 1} leads the next trick.`;
+    updateUI();
+    setTimeout(processNextTurn_4P, 500);
+}
+
+// --- END GAME ---
+function endGame() {
+    gameState.gameActive = false;
+    let title = "Game Over!";
+    let message;
+    const is4P = currentGameMode === 'whist_4p';
+    if (currentGameMode === 'puzzle') {
+        if (gameState.scores[0] === gameState.targetTricks) { title = "Puzzle Solved!"; message = `Congratulations! You won exactly ${gameState.targetTricks} tricks.`; } 
+        else { title = "Puzzle Failed!"; message = `You won ${gameState.scores[0]} tricks, but the target was ${gameState.targetTricks}.`; }
+    } else { 
+        const playerFinalScore = gameState.scores[0]; const oppFinalScore = gameState.scores[1];
+        const playerLabel = is4P ? 'Your Team' : 'You';
+        if (playerFinalScore > oppFinalScore) title = `${playerLabel} Win!`;
+        else if (oppFinalScore > playerFinalScore) title = `${playerLabel} Lose!`;
+        else title = "It's a Draw!";
+        message = `Final Score: ${playerFinalScore} to ${oppFinalScore}.`;
+    }
+    showResultModal(title, message);
+    updateUI();
+}
+
+function showResultModal(title, message) {
+    document.getElementById('resultTitle').textContent = title;
+    document.getElementById('resultMessage').textContent = message;
+    document.getElementById('resultModal').classList.remove('hidden');
+}
+
+// --- AI & UTILITY ---
+function findBestCardToLead(h,t,oh){if(oh){let w=h.find(c=>oh.every(oc=>oc.suit!==c.suit||oc.value<c.value));if(w)return w}h.sort((a,b)=>b.value-a.value);const n=h.filter(c=>c.suit!==t);return n.length>0?n[0]:h[h.length-1]}
+function findBestCardToFollow(h,l,t,oh){const s=l.suit;const f=h.filter(c=>c.suit===s);if(f.length>0){f.sort((a,b)=>a.value-b.value);const w=f.filter(c=>c.value>l.value);if(oh){const ow=oh.filter(oc=>oc.suit===s&&oc.value>l.value);if(ow.length===0)return w.length>0?w[0]:f[f.length-1]}return w.length>0?w[0]:f[f.length-1]}const r=h.filter(c=>c.suit===t).sort((a,b)=>a.value-b.value);if(r.length>0)return r[0];return h.sort((a,b)=>a.value-b.value)[0]}
+function cardSorter(a,b){const o={'♠':4,'♥':3,'♦':2,'♣':1};if(a.suit!==b.suit)return o[b.suit]-o[a.suit];return b.value-a.value}
+
+function isPuzzleSolvable(pHand, oHand, target, pTricks, isPlayerTurn) {
+    if (pHand.length === 0) return pTricks === target;
+    const [leaderHand, followerHand] = isPlayerTurn ? [pHand, oHand] : [oHand, pHand];
+    const validPlays = leaderHand; // In this simple game, any card can be led
+    for (const leadCard of validPlays) {
+        const newLeaderHand = leaderHand.filter(c => c.id !== leadCard.id);
+        const followSuit = leadCard.suit;
+        let validFollows = followerHand.filter(c => c.suit === followSuit);
+        if (validFollows.length === 0) {
+            validFollows = followerHand;
+        }
+        for (const followCard of validFollows) {
+            const newFollowerHand = followerHand.filter(c => c.id !== followCard.id);
+            let winner, winningCard;
+            if (followCard.suit === leadCard.suit) {
+                winner = followCard.value > leadCard.value ? 'follower' : 'leader';
+            } else {
+                winner = 'leader';
+            }
+            if (winner === 'leader') {
+                if (isPuzzleSolvable(newLeaderHand, newFollowerHand, target, pTricks + (isPlayerTurn ? 1 : 0), isPlayerTurn)) return true;
+            } else {
+                if (isPuzzleSolvable(newFollowerHand, newLeaderHand, target, pTricks + (isPlayerTurn ? 0 : 1), !isPlayerTurn)) return true;
+            }
+        }
+    }
+    return false;
+}
+
+// --- Event Listeners ---
+document.getElementById('germanWhistBtn').addEventListener('click', () => selectGameMode('german_whist'));
+document.getElementById('whistBtn').addEventListener('click', () => selectGameMode('whist'));
+document.getElementById('whist4pBtn').addEventListener('click', () => selectGameMode('whist_4p'));
+document.getElementById('puzzleBtn').addEventListener('click', () => selectGameMode('puzzle'));
+dealBtn.addEventListener('click', deal);
+changeModeBtn.addEventListener('click', () => {
+    gameArea.classList.add('hidden');
+    modeSelection.classList.remove('hidden');
+    document.getElementById('gameRules').classList.add('hidden');
+});
+document.getElementById('closeModalBtn').addEventListener('click', () => {
+    document.getElementById('resultModal').classList.add('hidden');
+});
+</script>
+</body>
+</html>
